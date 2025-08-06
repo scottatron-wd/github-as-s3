@@ -43,6 +43,9 @@ func WithDefaultGithub() applicationOpts {
 func WithDefaultGit() applicationOpts {
 	return func(a *Application) {
 		a.Git = git.NewGit(a.Token, a.Owner, a.GitUsername, a.GitEmail)
+		if a.LocalRepoPath != "" {
+			a.Git.SetLocalRepoPath(a.LocalRepoPath)
+		}
 	}
 }
 
@@ -55,5 +58,11 @@ func WithGitHub(gh *github.GitHub) applicationOpts {
 func WithGit(g *git.Git) applicationOpts {
 	return func(a *Application) {
 		a.Git = g
+	}
+}
+
+func WithLocalRepoPath(path string) applicationOpts {
+	return func(a *Application) {
+		a.LocalRepoPath = path
 	}
 }
