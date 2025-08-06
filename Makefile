@@ -32,6 +32,12 @@ test:
 	@echo "🧪 Running Go tests..."
 	go test -v ./...
 
+## Run custom S3 API compatibility tests (recommended)
+test-s3-custom: build
+	@echo "🧪 Running custom S3 API compatibility tests..."
+	@echo "Prerequisites: Set GITHUB_TOKEN and GITHUB_OWNER (or GHS3_LOCAL_REPO_PATH for local mode)"
+	./test/run-s3-tests.sh
+
 ## Run S3 API compatibility tests (requires MinIO Mint)
 test-s3: build mint-setup
 	@echo "🧪 Running S3 API compatibility tests..."
@@ -99,6 +105,7 @@ help:
 	@echo ""
 	@echo "Examples:"
 	@echo "  make build                    # Build the application"
-	@echo "  make test-s3                  # Run core S3 compatibility tests"
+	@echo "  make test-s3-custom           # Run custom S3 compatibility tests (recommended)"
+	@echo "  make test-s3                  # Run MinIO Mint S3 compatibility tests"
 	@echo "  make test-full                # Run full S3 compatibility tests"
 	@echo "  make test-docker              # Run tests with Docker Compose"

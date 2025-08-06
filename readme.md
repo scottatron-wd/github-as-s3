@@ -97,12 +97,29 @@ Hot reloading with [`air`](https://github.com/air-verse/air) is configured
 
 ## Testing
 
-The project includes comprehensive S3 API compatibility testing using [MinIO Mint](https://github.com/minio/mint):
+The project includes comprehensive S3 API compatibility testing:
+
+### Custom S3 Test Suite (Recommended)
+
+Focused testing of only the operations that github-as-s3 supports:
 
 ```bash
 # Quick setup and test
-make test-s3
+make test-s3-custom
+```
 
+The custom test suite:
+
+- Tests only supported S3 operations (no early failures)
+- Runs in 2-5 seconds vs 2-30 minutes for comprehensive suites
+- Provides detailed pass/fail status for each operation
+- Includes advanced tests like prefix filtering and multi-object operations
+
+### MinIO Mint (Comprehensive)
+
+Industry-standard S3 compatibility testing with [MinIO Mint](https://github.com/minio/mint):
+
+```bash
 # Full compatibility test suite
 make test-full
 
@@ -116,7 +133,7 @@ MinIO Mint tests the S3 API against multiple clients including:
 - MinIO clients and tools
 - Third-party S3 tools (s3cmd, rclone)
 
-For detailed testing documentation, see [`test/README.md`](./test/README.md).
+For detailed testing documentation, see [`test/README.md`](./test/README.md) and [`test/S3_TESTS.md`](./test/S3_TESTS.md).
 
 # Compatible & Tested applications
 
