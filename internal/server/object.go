@@ -19,6 +19,12 @@ import (
 func (h *Handler) PutObject(c echo.Context) error {
 	ctx := c.Request().Context()
 
+	// Check if this is a CopyObject operation
+	copySource := c.Request().Header.Get("x-amz-copy-source")
+	if copySource != "" {
+		return h.CopyObject(c)
+	}
+
 	logger := log.Ctx(ctx).With().Str("command", "PutObject").Logger()
 
 	logger.Debug().Msg("PutObject.Start")
@@ -76,6 +82,106 @@ func (h *Handler) PutObject(c echo.Context) error {
 
 	logger.Info().Str("versionId", commitSHA).Msg("PutObject.OK")
 	return c.String(http.StatusOK, "")
+}
+
+func (h *Handler) CopyObject(c echo.Context) error {
+	ctx := c.Request().Context()
+
+	logger := log.Ctx(ctx).With().Str("command", "CopyObject").Logger()
+	logger.Debug().Msg("CopyObject.Start")
+
+	// Parse destination bucket and key
+	destBucket := c.Param("bucket")
+	if destBucket == "" {
+		logger.Warn().Msg("Destination bucket name is missing")
+		return c.String(http.StatusBadRequest, "Destination bucket name is missing")
+	}
+
+	destKey := c.Param("*")
+	if destKey == "" {
+		logger.Warn().Msg("Destination object key is missing")
+		return c.String(http.StatusBadRequest, "Destination object key is missing")
+	}
+	destKey = strings.TrimPrefix(destKey, "/")
+
+	// Parse source from x-amz-copy-source header
+	copySource := c.Request().Header.Get("x-amz-copy-source")
+	if copySource == "" {
+		logger.Warn().Msg("x-amz-copy-source header is missing")
+		return h.s3ErrorResponse(c, http.StatusBadRequest, "InvalidRequest", "x-amz-copy-source header is required for copy operations", destKey)
+	}
+
+	// Parse source bucket and key from copy source (format: /bucket/key)
+	copySource = strings.TrimPrefix(copySource, "/")
+	parts := strings.SplitN(copySource, "/", 2)
+	if len(parts) != 2 {
+		logger.Warn().Str("copy_source", copySource).Msg("Invalid x-amz-copy-source format")
+		return h.s3ErrorResponse(c, http.StatusBadRequest, "InvalidRequest", "Invalid x-amz-copy-source format", destKey)
+	}
+
+	srcBucket := parts[0]
+	srcKey := parts[1]
+
+	logger = logger.With().
+		Str("dest_bucket", destBucket).
+		Str("dest_key", destKey).
+		Str("src_bucket", srcBucket).
+		Str("src_key", srcKey).
+		Logger()
+
+	logger.Debug().Msg("Parsed copy parameters")
+
+	// For simplicity, this implementation only supports copying within the same bucket
+	// Cross-bucket copying would require cloning multiple repositories
+	if srcBucket != destBucket {
+		logger.Warn().Msg("Cross-bucket copying not supported")
+		return h.s3ErrorResponse(c, http.StatusBadRequest, "InvalidRequest", "Cross-bucket copying is not supported", destKey)
+	}
+
+	// Clone the repository
+	repo, err := h.git.Clone(ctx, destBucket)
+	if err != nil {
+		logger.Error().Err(err).Str("bucket", destBucket).Msg("Failed to clone repository")
+		return c.String(http.StatusInternalServerError, fmt.Sprintf("Failed to clone repository '%s': %v", destBucket, err))
+	}
+	logger.Debug().Msg("Repository cloned successfully")
+
+	// Perform the copy operation
+	err = h.git.Copy(ctx, repo, srcKey, destKey)
+	if err != nil {
+		if errors.Is(err, git.ErrFileNotExists) {
+			logger.Warn().Err(err).Str("src_key", srcKey).Msg("Source object not found")
+			return h.s3ErrorResponse(c, http.StatusNotFound, "NoSuchKey", "The specified source key does not exist.", srcKey)
+		}
+		logger.Error().Err(err).Str("src_key", srcKey).Str("dest_key", destKey).Msg("Failed to copy object")
+		return c.String(http.StatusInternalServerError, fmt.Sprintf("Failed to copy object: %v", err))
+	}
+	logger.Debug().Msg("Object copied successfully")
+
+	// Get commit SHA for versioning
+	var commitSHA string
+	headRef, err := repo.Head()
+	if err != nil {
+		logger.Error().Err(err).Msg("Failed to get repository HEAD for versioning")
+	} else {
+		commitSHA = headRef.Hash().String()
+		logger.Debug().Str("commitSHA", commitSHA).Msg("Got commit SHA for version ID")
+	}
+
+	// Set response headers
+	c.Response().Header().Set("ETag", fmt.Sprintf(`"%s"`, commitSHA))
+	if commitSHA != "" {
+		c.Response().Header().Set("x-amz-version-id", commitSHA)
+	}
+
+	// Create and return CopyObjectResult XML response
+	result := s3.CopyObjectResult{
+		LastModified: time.Now().UTC().Format("2006-01-02T15:04:05.000Z"),
+		ETag:         fmt.Sprintf(`"%s"`, commitSHA),
+	}
+
+	logger.Info().Str("src_key", srcKey).Str("dest_key", destKey).Str("versionId", commitSHA).Msg("CopyObject.OK")
+	return c.XML(http.StatusOK, result)
 }
 
 func (h *Handler) GetObject(c echo.Context) error {

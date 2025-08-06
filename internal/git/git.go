@@ -364,6 +364,89 @@ func (g *Git) Get(ctx context.Context, repo *git.Repository, relativeFilepath st
 	return bytes, fileInfo, err
 }
 
+func (g *Git) Copy(ctx context.Context, repo *git.Repository, srcKey, destKey string) error {
+	slog := util.LogCtx(ctx, "git.Copy").With().Str("component", "git.Copy").Logger()
+	slog.Debug().Str("src", srcKey).Str("dest", destKey).Msg("git.Copy.Start")
+
+	if repo == nil {
+		slog.Error().Msg("repo is nil")
+		return errors.New("repo is nil")
+	}
+
+	wt, err := repo.Worktree()
+	if err != nil {
+		slog.Error().Err(err).Msg("failed to get worktree")
+		return err
+	}
+
+	// Read source file
+	srcFile, err := wt.Filesystem.Open(srcKey)
+	if err != nil {
+		if os.IsNotExist(err) {
+			slog.Error().Err(err).Str("src", srcKey).Msg("source file does not exist")
+			return ErrFileNotExists
+		}
+		slog.Error().Err(err).Str("src", srcKey).Msg("failed to open source file")
+		return err
+	}
+	defer func() {
+		_ = srcFile.Close()
+	}()
+
+	// Create destination file
+	destFile, err := wt.Filesystem.Create(destKey)
+	if err != nil {
+		slog.Error().Err(err).Str("dest", destKey).Msg("failed to create destination file")
+		return err
+	}
+	defer func() {
+		_ = destFile.Close()
+	}()
+
+	// Copy file contents
+	if _, err := io.Copy(destFile, srcFile); err != nil {
+		slog.Error().Err(err).Str("src", srcKey).Str("dest", destKey).Msg("failed to copy file contents")
+		return err
+	}
+	slog.Debug().Str("src", srcKey).Str("dest", destKey).Msg("file copied successfully")
+
+	// Add to git
+	_, err = wt.Add(destKey)
+	if err != nil {
+		slog.Error().Err(err).Str("dest", destKey).Msg("failed to add destination file to git")
+		return err
+	}
+
+	// Commit
+	_, err = wt.Commit("[GHS3] copy file "+srcKey+" to "+destKey, &git.CommitOptions{Author: g.signature()})
+	if err != nil {
+		if errors.Is(err, git.ErrEmptyCommit) {
+			slog.Debug().Msg("empty commit, skipping")
+			return nil
+		}
+		slog.Error().Err(err).Str("dest", destKey).Msg("failed to commit file copy")
+		return err
+	}
+	slog.Debug().Str("dest", destKey).Msg("file copy committed")
+
+	// Push if not in local mode
+	if !g.IsLocalMode() {
+		remote, err := repo.Remote("origin")
+		if err != nil {
+			slog.Error().Err(err).Msg("failed to get remote 'origin'")
+			return err
+		}
+
+		err = g.push(ctx, remote, "")
+		if err != nil {
+			return err
+		}
+	}
+
+	slog.Debug().Str("src", srcKey).Str("dest", destKey).Msg("git.Copy.OK")
+	return nil
+}
+
 func (g *Git) List(ctx context.Context, repo *git.Repository) (map[string]os.FileInfo, error) {
 	slog := util.LogCtx(ctx, "git.List").With().Str("component", "git.List").Logger()
 	slog.Debug().Msg("git.List.Start")

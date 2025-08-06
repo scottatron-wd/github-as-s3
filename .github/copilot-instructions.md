@@ -29,6 +29,7 @@ Handler routing switches between sync/async object operations based on `Handler.
 - Error responses use S3-compatible error codes (NoSuchKey, InternalError, etc.)
 - ETags use Git commit/blob SHAs 
 - `x-amz-version-id` header maps to Git commit SHAs
+- CopyObject operations detected via `x-amz-copy-source` header
 
 ## Key Patterns
 
@@ -81,10 +82,10 @@ Token needs `repo` and `delete_repo` permissions - validates at startup via `Che
 ## File Organization Logic
 
 - **Entry point**: `cmd/cli/main.go` - minimal bootstrap
-- **HTTP layer**: `internal/server/` - S3 API implementation  
-- **Git operations**: `internal/git/` - local Git repo management
+- **HTTP layer**: `internal/server/` - S3 API implementation with CopyObject support  
+- **Git operations**: `internal/git/` - local Git repo management with Copy() method
 - **GitHub operations**: `internal/github/` - GitHub API client
-- **Protocol models**: `internal/s3/` - S3 XML structures
+- **Protocol models**: `internal/s3/` - S3 XML structures including CopyObjectResult
 - **Utilities**: `internal/util/` - logging helpers, naming conventions
 
 ## Integration Points

@@ -76,3 +76,10 @@ type ContentsType struct {
 type CommonPrefixType struct {
 	Prefix string `xml:"Prefix"`
 }
+
+// CopyObjectResult represents the XML structure for S3 CopyObject response
+type CopyObjectResult struct {
+	XMLName      xml.Name `xml:"CopyResult"`
+	LastModified string   `xml:"LastModified"`
+	ETag         string   `xml:"ETag"`
+}

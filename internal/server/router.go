@@ -14,6 +14,7 @@ type S3API interface {
 	ListObjectsV2(echo.Context) error
 	DeleteObject(echo.Context) error
 	HeadObject(echo.Context) error
+	CopyObject(echo.Context) error
 }
 
 // RegisterRoutes registers S3-compatible routes with the Echo router.
