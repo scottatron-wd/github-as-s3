@@ -14,13 +14,14 @@ import (
 )
 
 type Application struct {
-	Token       string
-	Echo        *echo.Echo
-	Port        string
-	Address     string
-	Owner       string
-	GitUsername string
-	GitEmail    string
+	Token         string
+	Echo          *echo.Echo
+	Port          string
+	Address       string
+	Owner         string
+	GitUsername   string
+	GitEmail      string
+	LocalRepoPath string
 
 	GH  *github.GitHub
 	Git *git.Git
@@ -28,12 +29,13 @@ type Application struct {
 
 func newApplication() *Application {
 	return &Application{
-		Port:        getEnv("GHS3_PORT", "8080"),
-		Address:     getEnv("GHS3_ADDRESS", "0.0.0.0"),
-		Token:       getEnv("GITHUB_TOKEN", ""),
-		Owner:       getEnv("GITHUB_OWNER", ""),
-		GitUsername: getEnv("GIT_USERNAME", "GHS3"),
-		GitEmail:    getEnv("GIT_EMAIL", "bot@ghs3.com"),
+		Port:          getEnv("GHS3_PORT", "8080"),
+		Address:       getEnv("GHS3_ADDRESS", "0.0.0.0"),
+		Token:         getEnv("GITHUB_TOKEN", ""),
+		Owner:         getEnv("GITHUB_OWNER", ""),
+		GitUsername:   getEnv("GIT_USERNAME", "GHS3"),
+		GitEmail:      getEnv("GIT_EMAIL", "bot@ghs3.com"),
+		LocalRepoPath: getEnv("GHS3_LOCAL_REPO_PATH", ""),
 	}
 }
 
@@ -67,7 +69,14 @@ func (app *Application) Setup() error {
 	e.Use(middleware.BodyLimit("5M"))
 
 	app.Echo = e
-	server.RegisterRoutes(e, server.NewS3Handler(app.GH, app.Git, true))
+
+	// Force async mode when using local repository
+	useAsync := true
+	if app.LocalRepoPath == "" {
+		useAsync = true // Keep async as default, but could be configurable
+	}
+
+	server.RegisterRoutes(e, server.NewS3Handler(app.GH, app.Git, useAsync))
 
 	return nil
 }

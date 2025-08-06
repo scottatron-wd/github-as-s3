@@ -13,12 +13,14 @@ This is an S3-compatible proxy that uses Git repositories as storage. The system
 ### Application Bootstrap (`internal/application/`)
 - Uses functional options pattern: `NewApplicationWithOpts(WithDefaultGit(), WithDefaultGithub())`
 - Environment-driven config via `getEnv()` with defaults in `application.go`
-- Required env vars: `GITHUB_TOKEN`, `GITHUB_OWNER`
+- Required env vars: `GITHUB_TOKEN`, `GITHUB_OWNER` (not required for local mode)
 - Optional: `GHS3_PORT` (default: 8080), `GHS3_ADDRESS` (default: 0.0.0.0)
+- Local mode: `GHS3_LOCAL_REPO_PATH` or `--local-repo` CLI flag
 
 ### Dual Operation Modes (`internal/server/`)
 **Synchronous mode**: Direct GitHub API calls via `internal/github/`
 **Async mode**: Local Git operations via `internal/git/` with background pushes
+**Local repository mode**: Works with existing local Git repositories without remote operations
 
 Handler routing switches between sync/async object operations based on `Handler.async` flag.
 
@@ -48,6 +50,7 @@ logger := log.Ctx(c.Request().Context()).With().
 - `GitAsync` wraps synchronous `Git` operations
 - Background jobs use constants from `internal/consts/async.go` (PUT, DELETE)
 - Async handlers in `object_async.go` mirror sync handlers in `object.go`
+- Local mode: Disables remote push operations, works with local Git commits only
 
 ## Development Workflow
 
@@ -62,6 +65,9 @@ air
 
 # Direct Go run
 go run ./cmd/cli/
+
+# Local repository mode (no remote operations)
+go run ./cmd/cli/ --local-repo /path/to/your/git/repo
 ```
 
 ### GitHub Token Requirements

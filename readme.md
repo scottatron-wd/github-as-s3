@@ -29,10 +29,30 @@ cp .env.example .env
 go run ./cmd/cli/
 ```
 
+### Local Repository Mode
+
+You can run the server against a local git repository without any remote operations:
+
+```bash
+# Using command line flag
+go run ./cmd/cli/ --local-repo /path/to/your/git/repo
+
+# Or using environment variable
+export GHS3_LOCAL_REPO_PATH=/path/to/your/git/repo
+go run ./cmd/cli/
+```
+
+In local mode:
+
+- The server will open your existing git repository instead of cloning from GitHub
+- No remote git operations (push/pull) will be performed
+- GitHub token is not required
+- All S3 operations work with local git commits only
+
 The environment values require the following:
 
 ```bash
-# required - replace with your own username and token
+# required for remote mode - replace with your own username and token
 GITHUB_TOKEN=
 GITHUB_OWNER=ktunprasert
 
@@ -44,6 +64,10 @@ GHS3_ADDRESS=
 # these are the defaults defined in application.go
 GIT_USERNAME=GHS3
 GIT_EMAIL=bot@ghs3.com
+
+# local repository mode (optional)
+# when set, operates on the local git repository without remote operations
+GHS3_LOCAL_REPO_PATH=/path/to/your/git/repo
 ```
 
 The token requires 2 permissions: `repo`, `delete_repo`

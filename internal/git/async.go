@@ -61,10 +61,13 @@ func (w *RepoWorker) Start(bucket string) {
 		return
 	}
 
-	remote, err := w.repo.Remote(consts.Origin)
-	if err != nil {
-		logger.Error().Err(err).Msg("Failed to get remote")
-		return
+	var remote *git.Remote
+	if !w.ga.IsLocalMode() {
+		remote, err = w.repo.Remote(consts.Origin)
+		if err != nil {
+			logger.Error().Err(err).Msg("Failed to get remote")
+			return
+		}
 	}
 
 	for {
@@ -164,10 +167,15 @@ func (w *RepoWorker) Start(bucket string) {
 				return
 			}
 
-			if w.ga.skipPush {
-				logger.Debug().Msg("Skipping push to remote")
+			if w.ga.skipPush || w.ga.IsLocalMode() {
+				logger.Debug().Msg("Skipping push to remote (local mode or skip push enabled)")
 				debounceTimer.Stop()
+				continue
+			}
 
+			if remote == nil {
+				logger.Error().Msg("Remote is nil but push is required")
+				debounceTimer.Stop()
 				continue
 			}
 
@@ -395,45 +403,61 @@ func (ga GitAsync) ensureWorker(ctx context.Context, bucket string) (*RepoWorker
 	logger := log.Ctx(ctx).With().Str("component", "gitasync.EnsureWorker").Str("bucket", bucket).Logger()
 	logger.Debug().Msg("gitasync.EnsureWorker Start - Creating new worker")
 
-	path, err := os.MkdirTemp("", "ghs3-"+bucket+"-") // Added a trailing dash for clarity
-	if err != nil {
-		logger.Error().Err(err).Msg("Failed to create temp directory")
-		return nil, err
-	}
+	var path string
+	var repo *git.Repository
+	var err error
 
-	logger.Debug().Str("path", path).Msg("Temp directory created for Clone")
+	// If in local mode, use the local repository path
+	if ga.IsLocalMode() {
+		path = ga.localRepoPath
+		logger.Debug().Str("local_path", path).Msg("Opening local repository for async worker")
+		repo, err = git.PlainOpen(path)
+		if err != nil {
+			logger.Error().Err(err).Str("path", path).Msg("Failed to open local repository")
+			return nil, err
+		}
+	} else {
+		// Original remote clone logic
+		path, err = os.MkdirTemp("", "ghs3-"+bucket+"-") // Added a trailing dash for clarity
+		if err != nil {
+			logger.Error().Err(err).Msg("Failed to create temp directory")
+			return nil, err
+		}
 
-	repo, err := git.PlainCloneContext(ctx, path, false, &git.CloneOptions{
-		URL:           util.GithubURL(ga.owner, bucket),
-		Auth:          ga.auth(),
-		RemoteName:    consts.Origin,
-		ReferenceName: consts.Master,
-		SingleBranch:  true,
-		Progress:      nil,
-		Depth:         1,
-	})
+		logger.Debug().Str("path", path).Msg("Temp directory created for Clone")
 
-	if err != nil {
-		// If clone fails, attempt to remove the temp directory
-		_ = os.RemoveAll(path)
-		if errors.Is(err, transport.ErrEmptyRemoteRepository) {
-			logger.Debug().Msg("Remote repository is empty, calling InitRepo")
-			initializedRepo, initErr := ga.InitRepo(ctx, bucket, path) // This might need to use the 'path'
-			if initErr != nil {
-				logger.Error().Err(initErr).Msg("Failed to init repo after empty remote error")
-				return nil, initErr
-			}
-			repo = initializedRepo
-		} else if errors.Is(err, git.ErrRepositoryAlreadyExists) {
-			logger.Warn().Err(err).Msg("Repository already exists, attempting to open")
-			repo, err = git.PlainOpen(path)
-			if err != nil {
-				logger.Error().Err(err).Msg("Failed to open existing repository")
+		repo, err = git.PlainCloneContext(ctx, path, false, &git.CloneOptions{
+			URL:           util.GithubURL(ga.owner, bucket),
+			Auth:          ga.auth(),
+			RemoteName:    consts.Origin,
+			ReferenceName: consts.Master,
+			SingleBranch:  true,
+			Progress:      nil,
+			Depth:         1,
+		})
+
+		if err != nil {
+			// If clone fails, attempt to remove the temp directory
+			_ = os.RemoveAll(path)
+			if errors.Is(err, transport.ErrEmptyRemoteRepository) {
+				logger.Debug().Msg("Remote repository is empty, calling InitRepo")
+				initializedRepo, initErr := ga.InitRepo(ctx, bucket, path) // This might need to use the 'path'
+				if initErr != nil {
+					logger.Error().Err(initErr).Msg("Failed to init repo after empty remote error")
+					return nil, initErr
+				}
+				repo = initializedRepo
+			} else if errors.Is(err, git.ErrRepositoryAlreadyExists) {
+				logger.Warn().Err(err).Msg("Repository already exists, attempting to open")
+				repo, err = git.PlainOpen(path)
+				if err != nil {
+					logger.Error().Err(err).Msg("Failed to open existing repository")
+					return nil, err
+				}
+			} else {
+				logger.Error().Err(err).Msg("Failed to clone repository")
 				return nil, err
 			}
-		} else {
-			logger.Error().Err(err).Msg("Failed to clone repository")
-			return nil, err
 		}
 	}
 

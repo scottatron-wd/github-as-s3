@@ -1,6 +1,7 @@
 package main
 
 import (
+	"flag"
 	"github-as-s3/internal/application"
 	"net/http"
 	"os"
@@ -13,7 +14,7 @@ import (
 func setup() {
 	_ = godotenv.Load()
 	zerolog.TimeFieldFormat = zerolog.TimeFormatUnix
-	zerolog.SetGlobalLevel(zerolog.DebugLevel)
+	// zerolog.SetGlobalLevel(zerolog.DebugLevel)
 	log.Logger = log.Output(zerolog.ConsoleWriter{Out: os.Stderr})
 
 }
@@ -21,12 +22,27 @@ func setup() {
 func main() {
 	setup()
 
-	app := application.NewApplicationWithOpts(
-		application.WithDefaultGit(),
-		application.WithDefaultGithub(),
-	)
+	// Command line flags
+	localRepoPath := flag.String("local-repo", "", "Path to local git repository (enables local-only mode)")
+	flag.Parse()
 
-	if err := app.Start(); err != http.ErrServerClosed {
-		log.Fatal().Err(err)
+	// Only add GitHub option if not in local mode
+	if *localRepoPath == "" {
+		app := application.NewApplicationWithOpts(
+			application.WithDefaultGit(),
+			application.WithDefaultGithub(),
+		)
+		if err := app.Start(); err != http.ErrServerClosed {
+			log.Fatal().Err(err)
+		}
+	} else {
+		log.Info().Str("local_repo_path", *localRepoPath).Msg("Starting in local repository mode")
+		app := application.NewApplicationWithOpts(
+			application.WithLocalRepoPath(*localRepoPath),
+			application.WithDefaultGit(),
+		)
+		if err := app.Start(); err != http.ErrServerClosed {
+			log.Fatal().Err(err)
+		}
 	}
 }
