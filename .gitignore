@@ -1,2 +1,4 @@
 .env
 tmp
+ghs3-pulumi-bootstrap-state/
+mint/

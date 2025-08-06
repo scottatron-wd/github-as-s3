@@ -1,0 +1,54 @@
+version: '3.8'
+
+services:
+  github-as-s3:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    ports:
+      - "8080:8080"
+    environment:
+      - GITHUB_TOKEN=${GITHUB_TOKEN}
+      - GITHUB_OWNER=${GITHUB_OWNER}
+      - GHS3_LOCAL_REPO_PATH=${GHS3_LOCAL_REPO_PATH:-}
+    volumes:
+      # Mount local repo path if using local mode
+      - ${GHS3_LOCAL_REPO_PATH:-/tmp/empty}:/repo:ro
+    healthcheck:
+      test: [ "CMD", "curl", "-f", "http://localhost:8080/_health" ]
+      interval: 10s
+      timeout: 5s
+      retries: 3
+      start_period: 10s
+
+  mint-test:
+    image: minio/mint:latest
+    depends_on:
+      github-as-s3:
+        condition: service_healthy
+    environment:
+      - SERVER_ENDPOINT=github-as-s3:8080
+      - ACCESS_KEY=minioadmin
+      - SECRET_KEY=minioadmin
+      - ENABLE_HTTPS=0
+      - MINT_MODE=${MINT_MODE:-core}
+      - RUN_ON_FAIL=1
+    volumes:
+      - ./test/mint-logs:/mint/log
+    profiles:
+      - test
+
+  # For running mint tests manually
+  mint-manual:
+    image: minio/mint:latest
+    environment:
+      - SERVER_ENDPOINT=${SERVER_ENDPOINT:-github-as-s3:8080}
+      - ACCESS_KEY=${ACCESS_KEY:-minioadmin}
+      - SECRET_KEY=${SECRET_KEY:-minioadmin}
+      - ENABLE_HTTPS=0
+      - MINT_MODE=${MINT_MODE:-core}
+      - RUN_ON_FAIL=1
+    volumes:
+      - ./test/mint-logs:/mint/log
+    profiles:
+      - manual

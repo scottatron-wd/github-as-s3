@@ -107,3 +107,21 @@ func (h *Handler) s3ErrorResponse(c echo.Context, httpStatus int, s3ErrorCode, m
 	c.Response().Header().Set(echo.HeaderContentType, echo.MIMEApplicationXMLCharsetUTF8)
 	return c.XML(httpStatus, errResp)
 }
+
+// HealthCheck returns a simple health status for the server
+func (h *Handler) HealthCheck(c echo.Context) error {
+	response := map[string]interface{}{
+		"status":  "healthy",
+		"service": "github-as-s3",
+		"version": "1.0.0",
+	}
+
+	// Add local mode indicator if applicable
+	if h.git != nil && h.git.IsLocalMode() {
+		response["mode"] = "local"
+	} else {
+		response["mode"] = "remote"
+	}
+
+	return c.JSON(http.StatusOK, response)
+}

@@ -19,12 +19,21 @@ type S3API interface {
 
 // RegisterRoutes registers S3-compatible routes with the Echo router.
 func RegisterRoutes(e *echo.Echo, api Handler) {
-	// Bucket operations
+	// Non-S3 endpoints (use specific prefixes to avoid conflicts)
+	e.GET("/_health", api.HealthCheck)
+	e.GET("/_status", api.HealthCheck) // Alternative endpoint
+
+	// Root route for listing buckets
+	e.GET("/", api.ListBuckets)
+
+	// Bucket-level operations
 	e.PUT("/:bucket", api.CreateBucket)
 	e.DELETE("/:bucket", api.DeleteBucket)
-	e.GET("/", api.ListBuckets)
 	e.HEAD("/:bucket", api.HeadBucket)
+	e.GET("/:bucket", api.ListObjectsV2)
+	e.GET("/:bucket/", api.ListObjectsV2) // Handles ?list-type=2
 
+	// Object-level operations
 	if api.async {
 		e.PUT("/:bucket/*", api.PutObjectAsync)
 		e.DELETE("/:bucket/*", api.DeleteObjectAsync)
@@ -35,8 +44,7 @@ func RegisterRoutes(e *echo.Echo, api Handler) {
 		e.HEAD("/:bucket/*", api.HeadObject)
 	}
 	e.GET("/:bucket/*", api.GetObject)
-	e.GET("/:bucket", api.ListObjectsV2)
-	e.GET("/:bucket/", api.ListObjectsV2) // Handles ?list-type=2
 
+	// Catch-all handler for other requests
 	e.Any("/*", api.CatchAllHandler)
 }

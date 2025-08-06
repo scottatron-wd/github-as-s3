@@ -95,6 +95,29 @@ air
 
 Hot reloading with [`air`](https://github.com/air-verse/air) is configured
 
+## Testing
+
+The project includes comprehensive S3 API compatibility testing using [MinIO Mint](https://github.com/minio/mint):
+
+```bash
+# Quick setup and test
+make test-s3
+
+# Full compatibility test suite
+make test-full
+
+# Test with Docker Compose
+make test-docker
+```
+
+MinIO Mint tests the S3 API against multiple clients including:
+
+- AWS CLI and SDKs (Go, Java, JavaScript, Python, PHP, Ruby)
+- MinIO clients and tools
+- Third-party S3 tools (s3cmd, rclone)
+
+For detailed testing documentation, see [`test/README.md`](./test/README.md).
+
 # Compatible & Tested applications
 
 | Tool                                  | Tested                                                            |     |
