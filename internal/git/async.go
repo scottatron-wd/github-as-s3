@@ -380,6 +380,65 @@ func (ga GitAsync) Delete(ctx context.Context, repo *git.Repository, bucket, rel
 	return nil
 }
 
+func (ga GitAsync) Copy(ctx context.Context, repo *git.Repository, bucket, srcKey, destKey string) error {
+	logger := log.Ctx(ctx).With().Str("component", "gitasync.Copy").Str("src", srcKey).Str("dest", destKey).Logger()
+	logger.Debug().Msg("gitasync.Copy Start")
+	defer logger.Debug().Msg("gitasync.Copy End")
+
+	if repo == nil {
+		logger.Error().Msg("repo is nil")
+		return errors.New("repo is nil")
+	}
+
+	worker, err := ga.ensureWorker(ctx, bucket)
+	if err != nil {
+		logger.Error().Err(err).Msg("Failed to ensure worker")
+		return err
+	}
+
+	// Read source file content
+	wt, err := repo.Worktree()
+	if err != nil {
+		logger.Error().Err(err).Msg("Failed to get worktree")
+		return err
+	}
+
+	srcFile, err := wt.Filesystem.Open(srcKey)
+	if err != nil {
+		if os.IsNotExist(err) {
+			logger.Error().Err(err).Str("src", srcKey).Msg("source file does not exist")
+			return ErrFileNotExists
+		}
+		logger.Error().Err(err).Str("src", srcKey).Msg("failed to open source file")
+		return err
+	}
+	defer func() {
+		_ = srcFile.Close()
+	}()
+
+	fileContent, err := io.ReadAll(srcFile)
+	if err != nil {
+		logger.Error().Err(err).Msg("Failed to read source file content")
+		return err
+	}
+
+	change := ChangeRequest{
+		ctx:           ctx,
+		ObjectKey:     destKey,
+		Content:       fileContent,
+		Type:          consts.Put,
+		CommitMessage: "Copy file " + srcKey + " to " + destKey,
+		done:          make(chan error),
+	}
+
+	worker.changeQueue <- &change
+	if err := <-change.done; err != nil {
+		return err
+	}
+
+	return nil
+}
+
 func (ga GitAsync) ensureWorker(ctx context.Context, bucket string) (*RepoWorker, error) {
 	repoWorkers.RLock()
 	w, exists := repoWorkers.channels[bucket]
