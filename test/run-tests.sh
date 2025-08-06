@@ -11,6 +11,7 @@ cd "$PROJECT_ROOT"
 # Configuration
 SERVER_PORT="${GHS3_PORT:-8080}"
 SERVER_HOST="${GHS3_HOST:-localhost}"
+MINT_SERVER_HOST="host.docker.internal" # Use this for Docker on macOS/Windows
 ACCESS_KEY="${AWS_ACCESS_KEY_ID:-minioadmin}"
 SECRET_KEY="${AWS_SECRET_ACCESS_KEY:-minioadmin}"
 TEST_MODE="${MINT_MODE:-core}"
@@ -68,7 +69,7 @@ start_server() {
   mkdir -p ./test/logs
 
   # Start server in background
-  ./bin/github-as-s3 --port="$SERVER_PORT" >"./test/logs/server-$(date +%Y%m%d-%H%M%S).log" 2>&1 &
+  ./bin/github-as-s3 >"./test/logs/server-$(date +%Y%m%d-%H%M%S).log" 2>&1 &
   SERVER_PID=$!
 
   echo "   Server started with PID: $SERVER_PID"
@@ -109,7 +110,7 @@ run_tests() {
 
   # Run the mint test script
   ./test/mint-test.sh \
-    --host "$SERVER_HOST" \
+    --host "$MINT_SERVER_HOST" \
     --port "$SERVER_PORT" \
     --access-key "$ACCESS_KEY" \
     --secret-key "$SECRET_KEY" \

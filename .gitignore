@@ -2,3 +2,6 @@
 tmp
 ghs3-pulumi-bootstrap-state/
 mint/
+/test/logs
+/test/mint-logs-*
+/bin/github-as-s3
