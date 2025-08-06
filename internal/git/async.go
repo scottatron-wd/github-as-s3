@@ -489,7 +489,7 @@ func (ga GitAsync) ensureWorker(ctx context.Context, bucket string) (*RepoWorker
 			URL:           util.GithubURL(ga.owner, bucket),
 			Auth:          ga.auth(),
 			RemoteName:    consts.Origin,
-			ReferenceName: consts.Master,
+			ReferenceName: plumbing.ReferenceName(ga.GetBranchReference()),
 			SingleBranch:  true,
 			Progress:      nil,
 			Depth:         1,

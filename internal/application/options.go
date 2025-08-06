@@ -46,6 +46,9 @@ func WithDefaultGit() applicationOpts {
 		if a.LocalRepoPath != "" {
 			a.Git.SetLocalRepoPath(a.LocalRepoPath)
 		}
+		if a.DefaultBranch != "" {
+			a.Git.SetDefaultBranch(a.DefaultBranch)
+		}
 	}
 }
 
@@ -64,5 +67,11 @@ func WithGit(g *git.Git) applicationOpts {
 func WithLocalRepoPath(path string) applicationOpts {
 	return func(a *Application) {
 		a.LocalRepoPath = path
+	}
+}
+
+func WithDefaultBranch(branch string) applicationOpts {
+	return func(a *Application) {
+		a.DefaultBranch = branch
 	}
 }

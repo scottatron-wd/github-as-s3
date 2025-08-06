@@ -26,7 +26,11 @@ func (h *Handler) CreateBucket(c echo.Context) error {
 
 	var isPrivate bool
 	aclHeader := c.Request().Header.Get("X-Amz-Acl")
-	logger.Debug().Str("bucket", bucketName).Str("x-amz-acl", aclHeader).Msg("Processing CreateBucket request")
+
+	// Check for custom branch specification header
+	branchHeader := c.Request().Header.Get("X-Ghs3-Branch")
+
+	logger.Debug().Str("bucket", bucketName).Str("x-amz-acl", aclHeader).Str("x-ghs3-branch", branchHeader).Msg("Processing CreateBucket request")
 
 	switch aclHeader {
 	case "public-read", "public-read-write":
@@ -69,9 +73,9 @@ func (h *Handler) CreateBucket(c echo.Context) error {
 		return h.s3ErrorResponse(c, http.StatusInternalServerError, "InternalError", "We encountered an internal error creating the repository. Please try again.", bucketName)
 	}
 
-	_, err = h.git.InitRepo(ctx, bucketName, "")
+	_, err = h.git.InitRepoWithBranch(ctx, bucketName, "", branchHeader)
 	if err != nil {
-		logger.Error().Err(err).Str("bucket", bucketName).Msg("Failed to initialize GitHub repository")
+		logger.Error().Err(err).Str("bucket", bucketName).Str("branch", branchHeader).Msg("Failed to initialize GitHub repository")
 		return h.s3ErrorResponse(c, http.StatusInternalServerError, "InternalError", "We failed to initialise your bucket please try again", bucketName)
 	}
 

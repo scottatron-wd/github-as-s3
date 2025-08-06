@@ -22,6 +22,7 @@ type Application struct {
 	GitUsername   string
 	GitEmail      string
 	LocalRepoPath string
+	DefaultBranch string
 
 	GH  *github.GitHub
 	Git *git.Git
@@ -36,6 +37,7 @@ func newApplication() *Application {
 		GitUsername:   getEnv("GIT_USERNAME", "GHS3"),
 		GitEmail:      getEnv("GIT_EMAIL", "bot@ghs3.com"),
 		LocalRepoPath: getEnv("GHS3_LOCAL_REPO_PATH", ""),
+		DefaultBranch: getEnv("GHS3_DEFAULT_BRANCH", "master"),
 	}
 }
 

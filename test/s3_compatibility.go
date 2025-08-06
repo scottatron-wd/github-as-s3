@@ -1,4 +1,4 @@
-package main
+package s3test
 
 import (
 	"bytes"
@@ -14,7 +14,7 @@ import (
 )
 
 func main() {
-	// Configuration
+	// Configuration - use the helper function from suite_test.go
 	endpoint := getEnv("GHS3_ENDPOINT", "http://localhost:8080")
 	accessKey := getEnv("AWS_ACCESS_KEY_ID", "minioadmin")
 	secretKey := getEnv("AWS_SECRET_ACCESS_KEY", "minioadmin")
@@ -223,11 +223,4 @@ func runTest(name string, testFunc func() error) bool {
 		fmt.Printf("✅ PASS (%v)\n", duration)
 		return true
 	}
-}
-
-func getEnv(key, defaultValue string) string {
-	if value := os.Getenv(key); value != "" {
-		return value
-	}
-	return defaultValue
 }

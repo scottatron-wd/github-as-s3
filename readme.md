@@ -48,6 +48,34 @@ In local mode:
 - The server will open your existing git repository instead of cloning from GitHub
 - No remote git operations (push/pull) will be performed
 - GitHub token is not required
+
+### Branch Support
+
+github-as-s3 supports configurable Git branches for repository operations:
+
+#### Global Branch Configuration
+
+```bash
+# Set default branch for all repository operations
+export GHS3_DEFAULT_BRANCH=main
+go run ./cmd/cli/
+
+# Or use CLI flag
+go run ./cmd/cli/ --default-branch=main
+```
+
+#### Per-Bucket Branch Configuration
+
+When creating a bucket (repository), specify a custom branch using the `X-Ghs3-Branch` header:
+
+```bash
+# Using curl
+curl -X PUT http://localhost:8080/my-bucket \
+    -H "X-Ghs3-Branch: develop"
+```
+
+All operations on that bucket will use the specified branch. If no branch is specified, the configured default branch is used.
+
 - All S3 operations work with local git commits only
 
 The environment values require the following:
@@ -65,6 +93,10 @@ GHS3_ADDRESS=
 # these are the defaults defined in application.go
 GIT_USERNAME=GHS3
 GIT_EMAIL=bot@ghs3.com
+
+# git branch configuration (optional)
+# default branch to use for all repository operations
+GHS3_DEFAULT_BRANCH=master
 
 # local repository mode (optional)
 # when set, operates on the local git repository without remote operations

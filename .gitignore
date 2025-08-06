@@ -5,3 +5,4 @@ mint/
 /test/logs
 /test/mint-logs-*
 /bin/github-as-s3
+commit_message.txt

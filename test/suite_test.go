@@ -3,6 +3,7 @@ package s3test
 import (
 	"bytes"
 	"fmt"
+	"net/http"
 	"os"
 	"testing"
 	"time"
@@ -166,6 +167,36 @@ func testCreateBucket(config *TestConfig) error {
 		config.CleanupBuckets = append(config.CleanupBuckets, config.TestBucket)
 	}
 	return err
+}
+
+func testCreateBucketWithBranch(config *TestConfig) error {
+	bucketName := fmt.Sprintf("test-branch-bucket-%d", time.Now().Unix())
+
+	// Create a bucket with custom branch using HTTP client directly
+	// since the AWS SDK doesn't support custom headers easily
+	client := &http.Client{}
+	req, err := http.NewRequest("PUT", fmt.Sprintf("%s/%s", config.Endpoint, bucketName), nil)
+	if err != nil {
+		return fmt.Errorf("failed to create request: %v", err)
+	}
+
+	// Add the custom branch header
+	req.Header.Set("X-Ghs3-Branch", "develop")
+
+	resp, err := client.Do(req)
+	if err != nil {
+		return fmt.Errorf("failed to execute request: %v", err)
+	}
+	defer resp.Body.Close()
+
+	if resp.StatusCode != 200 && resp.StatusCode != 201 {
+		body := make([]byte, 1024)
+		n, _ := resp.Body.Read(body)
+		return fmt.Errorf("bucket creation failed with status %d: %s", resp.StatusCode, string(body[:n]))
+	}
+
+	config.CleanupBuckets = append(config.CleanupBuckets, bucketName)
+	return nil
 }
 
 func testHeadBucket(config *TestConfig) error {
@@ -444,6 +475,7 @@ func TestS3Compatibility(t *testing.T) {
 	// Basic bucket operations
 	ts.RunTest("ListBuckets", testListBuckets)
 	ts.RunTest("CreateBucket", testCreateBucket)
+	ts.RunTest("CreateBucketWithBranch", testCreateBucketWithBranch)
 	ts.RunTest("HeadBucket", testHeadBucket)
 
 	// Object operations

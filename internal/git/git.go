@@ -14,6 +14,7 @@ import (
 
 	"github.com/go-git/go-git/v5"
 	"github.com/go-git/go-git/v5/config"
+	"github.com/go-git/go-git/v5/plumbing"
 	"github.com/go-git/go-git/v5/plumbing/object"
 	"github.com/go-git/go-git/v5/plumbing/transport"
 	"github.com/go-git/go-git/v5/plumbing/transport/http"
@@ -27,14 +28,16 @@ type Git struct {
 	username      string
 	email         string
 	localRepoPath string
+	defaultBranch string
 }
 
 func NewGit(token, owner, username, email string) *Git {
 	return &Git{
-		token:    token,
-		owner:    owner,
-		username: username,
-		email:    email,
+		token:         token,
+		owner:         owner,
+		username:      username,
+		email:         email,
+		defaultBranch: "master", // Default fallback
 	}
 }
 
@@ -47,6 +50,21 @@ func (g *Git) SetLocalRepoPath(path string) {
 	g.skipPush = true // Automatically skip push for local repos
 }
 
+func (g *Git) SetDefaultBranch(branch string) {
+	g.defaultBranch = branch
+}
+
+func (g *Git) GetDefaultBranch() string {
+	if g.defaultBranch == "" {
+		return "master" // fallback
+	}
+	return g.defaultBranch
+}
+
+func (g *Git) GetBranchReference() string {
+	return "refs/heads/" + g.GetDefaultBranch()
+}
+
 func (g *Git) IsLocalMode() bool {
 	return g.localRepoPath != ""
 }
@@ -54,11 +72,21 @@ func (g *Git) IsLocalMode() bool {
 // Used when we create a new repo via GitHub but
 // it's empty
 func (g *Git) InitRepo(ctx context.Context, name, path string) (*git.Repository, error) {
-	slog := util.LogCtx(ctx, "git.InitRepo").With().Str("component", "git.InitRepo").Logger()
+	return g.InitRepoWithBranch(ctx, name, path, "")
+}
+
+// InitRepoWithBranch initializes a repository with a specific branch
+// If branch is empty, uses the default branch
+func (g *Git) InitRepoWithBranch(ctx context.Context, name, path, branch string) (*git.Repository, error) {
+	slog := util.LogCtx(ctx, "git.InitRepoWithBranch").With().Str("component", "git.InitRepoWithBranch").Logger()
+
+	if branch == "" {
+		branch = g.GetDefaultBranch()
+	}
 
 	var err error
-	slog.Debug().Str("repo_name", name).Msg("git.InitRepo.Start")
-	defer slog.Error().Str("name", name).Str("path", path).AnErr("init_repo_error", err).Msg("git.InitRepo.Error")
+	slog.Debug().Str("repo_name", name).Str("branch", branch).Msg("git.InitRepoWithBranch.Start")
+	defer slog.Error().Str("name", name).Str("path", path).Str("branch", branch).AnErr("init_repo_error", err).Msg("git.InitRepoWithBranch.Error")
 
 	if path == "" {
 		path, err = os.MkdirTemp("", "ghs3-"+name)
@@ -86,6 +114,27 @@ func (g *Git) InitRepo(ctx context.Context, name, path string) (*git.Repository,
 		return nil, err
 	}
 
+	// Create a branch if it's not the default branch
+	if branch != "master" && branch != g.GetDefaultBranch() {
+		slog.Debug().Str("branch", branch).Msg("Creating new branch")
+
+		// Create and checkout the new branch
+		branchRef := plumbing.NewBranchReferenceName(branch)
+		headRef, err := repo.Head()
+		if err != nil {
+			return nil, err
+		}
+
+		err = wt.Checkout(&git.CheckoutOptions{
+			Branch: branchRef,
+			Create: true,
+			Hash:   headRef.Hash(),
+		})
+		if err != nil {
+			slog.Debug().Err(err).Str("branch", branch).Msg("Failed to create branch, continuing with default")
+		}
+	}
+
 	f, err := wt.Filesystem.Create(".ghs3")
 	if err != nil {
 		return nil, err
@@ -110,7 +159,7 @@ func (g *Git) InitRepo(ctx context.Context, name, path string) (*git.Repository,
 		return nil, err
 	}
 
-	slog.Debug().Str("repo_name", name).Msg("git.InitRepo.OK")
+	slog.Debug().Str("repo_name", name).Str("branch", branch).Msg("git.InitRepoWithBranch.OK")
 	return repo, nil
 }
 
@@ -140,7 +189,7 @@ func (g *Git) Clone(ctx context.Context, name string) (*git.Repository, error) {
 	repo, err := git.PlainCloneContext(ctx, path, false, &git.CloneOptions{
 		URL:           util.GithubURL(g.owner, name),
 		Auth:          g.auth(),
-		ReferenceName: consts.Master,
+		ReferenceName: plumbing.ReferenceName(g.GetBranchReference()),
 		SingleBranch:  true,
 	})
 
