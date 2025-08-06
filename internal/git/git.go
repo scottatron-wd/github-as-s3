@@ -21,11 +21,12 @@ import (
 )
 
 type Git struct {
-	token    string
-	owner    string
-	skipPush bool
-	username string
-	email    string
+	token         string
+	owner         string
+	skipPush      bool
+	username      string
+	email         string
+	localRepoPath string
 }
 
 func NewGit(token, owner, username, email string) *Git {
@@ -39,6 +40,15 @@ func NewGit(token, owner, username, email string) *Git {
 
 func (g *Git) SetSkipPush(skipPush bool) {
 	g.skipPush = skipPush
+}
+
+func (g *Git) SetLocalRepoPath(path string) {
+	g.localRepoPath = path
+	g.skipPush = true // Automatically skip push for local repos
+}
+
+func (g *Git) IsLocalMode() bool {
+	return g.localRepoPath != ""
 }
 
 // Used when we create a new repo via GitHub but
@@ -108,6 +118,19 @@ func (g *Git) Clone(ctx context.Context, name string) (*git.Repository, error) {
 	slog := util.LogCtx(ctx, "git.Clone").With().Str("component", "git.Clone").Logger()
 	slog.Debug().Str("repo_name", name).Msg("git.Clone.Start")
 
+	// If in local mode, open the existing repository
+	if g.IsLocalMode() {
+		slog.Debug().Str("local_path", g.localRepoPath).Msg("Opening local repository")
+		repo, err := git.PlainOpen(g.localRepoPath)
+		if err != nil {
+			slog.Error().Err(err).Str("path", g.localRepoPath).Msg("Failed to open local repository")
+			return nil, err
+		}
+		slog.Debug().Str("repo_name", name).Msg("git.Clone.OK (local mode)")
+		return repo, nil
+	}
+
+	// Original remote clone logic
 	path, err := os.MkdirTemp("", "ghs3-"+name)
 	if err != nil {
 		return nil, err
